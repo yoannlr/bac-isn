@@ -12,8 +12,9 @@ boolean option = false;
 boolean bestscores = false;
 boolean intro = false;
 boolean gameOver = false;
+boolean timerStarted = false;
 
-Joueur j = new Joueur(1, 1);
+Joueur joueur = new Joueur(1, 1);
 
 Minim minim;
 AudioSample pyramide;
@@ -85,17 +86,15 @@ HashMap<String, Integer> attackDamages = new HashMap<String, Integer>();
 class Ennemy {
   int x;
   int y;
-  int[] path;
   String type;
   int mvStep = 0;
   int mvSpeed = 0;
   int life = 60;
   
-  Ennemy(String type, int x, int y, int[] path) {
+  Ennemy(String type, int x, int y) {
     this.type = type;
     this.x = x;
     this.y = y;
-    this.path = path;
     println("Adding ennemy " + this.type);
     
     switch(this.type) {
@@ -115,7 +114,7 @@ class Ennemy {
   void update() {
     if(this.life < 1) return;
     
-    if(isPlayerClose()) j.life--;
+    if(isPlayerClose()) joueur.life--;
     else {
       mvStep++;
       if(this.mvStep >= this.mvSpeed) {
@@ -127,10 +126,10 @@ class Ennemy {
   }
   
   boolean isPlayerClose() {
-    if(j.x == this.x && j.y == this.y) return true;
-    if(j.y == this.y && (j.x == this.x - 1 || j.x == this.x + 1)) return true;
-    if(j.x == this.x && (j.y == this.y - 1 || j.y == this.y + 1)) return true;
-    return false;
+    if(joueur.x == this.x && joueur.y == this.y) return true;    //joueur et ennemi sur la meme case
+    if(joueur.y == this.y && (joueur.x == this.x - 1 || joueur.x == this.x + 1)) return true;    //joueur a gauche ou a droite de l'ennemi
+    if(joueur.x == this.x && (joueur.y == this.y - 1 || joueur.y == this.y + 1)) return true;    //joueur au dessus ou en dessous de l'ennemi
+    return false;    //rien
   }
   
   void renderEnnemy() {
@@ -161,19 +160,12 @@ int currentLevel = 1;
 
 void setMap(int level) {
   if(fileExists(dataPath("level" + level + ".json"))) {
-    score += 1000 + j.life;
     maps[level] = new Map("level" + level + ".json");
     currentLevel = level;
   }
   else {
-    addScore(score);
-    
-    //Reset du jeu pour les futures parties qui se feront sans redemarrer le programme
     game = false;
     gameOver = true;
-    currentLevel = 1;
-    maps = new Map[100];
-    maps[1] = new Map("level1.json");
   }
 }
 
@@ -206,7 +198,7 @@ class Map {
     int n = 0;
     for(String s : ennemiesString) {
       String[] params = s.split(",");
-      Ennemy e = new Ennemy(params[0], Integer.parseInt(params[1]), Integer.parseInt(params[2]), new int[] {});
+      Ennemy e = new Ennemy(params[0], Integer.parseInt(params[1]), Integer.parseInt(params[2]));
       this.ennemies[n] = e;
       n++;
     }
@@ -254,8 +246,8 @@ class Map {
       }
     }
     
-    j.x = this.spawnX;
-    j.y = this.spawnY;
+    joueur.x = this.spawnX;
+    joueur.y = this.spawnY;
   }
   
   void update() {
@@ -275,15 +267,6 @@ class Map {
     }
   }
   
-  void renderTopTiles() {
-    for(int x = 0; x < this.mWidth; x++) {
-      for(int y = 0; y < this.mHeight; y++) {
-        if(tiles[x][y] == 4 || tiles[x][y] == 5)
-          image(sprites.get("tile_" + this.tiles[x][y]), x * tileSize, y * tileSize);
-      }
-    }
-  }
-  
   void renderEntities() {
     for(Ennemy e : this.ennemies) {
       e.renderEnnemy();
@@ -293,7 +276,16 @@ class Map {
       i.render();
     }
 
-    j.joueurDraw();
+    joueur.joueurDraw();
+  }
+  
+  void renderTopTiles() {
+    for(int x = 0; x < this.mWidth; x++) {
+      for(int y = 0; y < this.mHeight; y++) {
+        if(tiles[x][y] == 4 || tiles[x][y] == 5)
+          image(sprites.get("tile_" + this.tiles[x][y]), x * tileSize, y * tileSize);
+      }
+    }
   }
   
   boolean canPass(int x, int y) {
@@ -320,9 +312,9 @@ class Item {
   }
 
   void pickup() {
-    if(j.x == this.x && j.y == this.y) {
-      if(this.type.equals("heart")) j.life = 100;
-      else j.addItem(this.type);
+    if(joueur.x == this.x && joueur.y == this.y) {
+      if(this.type.equals("heart")) joueur.life = 100;
+      else joueur.addItem(this.type);
       this.x = -1;
       this.y = -1;
     }
@@ -371,7 +363,6 @@ class Joueur {
   }
   
   void addItem(String type) {
-    if(inventory.length > 5) return;
     for(int i = 0; i < 5; i++) {
       if(this.inventory[i] == null) {
         this.inventory[i] = type;
@@ -384,7 +375,7 @@ class Joueur {
     //Vie
     image(sprites.get("ui"), 0, 0);
     fill(200, 0, 0);
-    rect(30, 5, 2 * j.life, 20);
+    rect(30, 5, 2 * joueur.life, 20);
     fill(255);
     
     //Inventaire
@@ -490,6 +481,15 @@ void drawIntro() {
   image(sprites.get("controls"), 0, 0);
 }
 
+void resetGame() {
+    addScore(score);
+    score = 0;
+    gameOver = false;
+    currentLevel = 1;
+    maps = new Map[100];
+    maps[1] = new Map("level1.json");
+}
+
 /*    MAIN    */
 
 void setup() {
@@ -573,44 +573,64 @@ void mousePressed() {
     if(mouseX > 1150 && mouseY > 650) {
       intro = false;
       game = true;
+      timerStarted = true;
     }
   }
   else if(gameOver) {
     if(mouseX > 900 && mouseY > 600) {
-      score = 0;
-      gameOver = false;
+      resetGame();
     }
   }
 }
 
 void keyPressed() {
   if(game) {
-    if( key == 'z') j.move(0,-1);
-    if( key == 's') j.move(0,1);
-    if( key == 'q') j.move(-1,0);
-    if( key == 'd') j.move(1,0);
-    if( key == 'a') j.attack();
+    if( key == 'z') joueur.move(0,-1);
+    if( key == 's') joueur.move(0,1);
+    if( key == 'q') joueur.move(-1,0);
+    if( key == 'd') joueur.move(1,0);
+    if( key == 'a') joueur.attack();
   }
 }
 
 void drawGame() {
-  j.pickupItems();
+  joueur.pickupItems();
   getCurrentMap().render();
   getCurrentMap().renderEntities();
   getCurrentMap().renderTopTiles();
-  if(j.x == getCurrentMap().outX && j.y == getCurrentMap().outY) {
-    score += 1000 + j.life;
-    j.life += 10;
-    if(j.life > 100) j.life = 100;
+  if(joueur.x == getCurrentMap().outX && joueur.y == getCurrentMap().outY) {
+    score += 1000 + joueur.life;
+    joueur.life += 10;
+    if(joueur.life > 100) joueur.life = 100;
     setMap(currentLevel + 1);
   }
-  j.renderUI();
+  joueur.renderUI();
+  
+  if(joueur.life < 1) {
+    game = false;
+    gameOver = true;
+  }
+  
+  timer();
 }
 
 void mouseWheel(MouseEvent e) {
   if(!game) return;
   int n = e.getCount();
-  if(j.selectedSlot + n >= 0 && j.selectedSlot + n < 5) j.selectedSlot += n;
+  if(joueur.selectedSlot + n >= 0 && joueur.selectedSlot + n < 5) joueur.selectedSlot += n;
+}
+
+void timer() {
+  if(timerStarted) {
+      int times = (millis()%60000)/1000;
+      int timem = (millis()%3600000)/60000;
+      if(timem >= 3) {
+        timerStarted = false;
+        game = false;
+        gameOver = true;
+      }
+      text("Temps ecoule: " + timem + ":" + times + "/3:00", 950 , 30);
+  }
 }
 
 void draw() {
