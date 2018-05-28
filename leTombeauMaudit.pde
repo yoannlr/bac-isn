@@ -430,11 +430,11 @@ void drawOption() {
    textFont(createFont("courrier", 25));
   if (sons) {
     fill(0);
-    text("NON", 665, 330);
+    text("OUI", 665, 330);
   }
   else {
     fill(0);
-    text("OUI", 665, 330);
+    text("NON", 665, 330);
   }
 }
 
@@ -523,7 +523,7 @@ void setup() {
     ligne5 = phrase5[i];
   } 
   
-  //pyramide = minim.loadSample("pyramide.wav");
+  pyramide = minim.loadSample("pyramide.wav");
   
   attackDamages.put("sword", 20);
   attackDamages.put("heart", 0);
@@ -571,6 +571,7 @@ void mousePressed() {
   }
   else if(intro && !game && !option && !bestscores) {
     if(mouseX > 1150 && mouseY > 650) {
+      if(sons) pyramide.trigger();
       intro = false;
       game = true;
       timerStarted = true;
